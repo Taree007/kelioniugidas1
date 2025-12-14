@@ -1,0 +1,266 @@
+<?php
+// generatorius.php - 1 MARŠRUTAS PAGAL LAIKĄ
+session_start();
+include("include/nustatymai.php");
+include("include/functions.php");
+
+if (!isset($_SESSION['prev']) || $_SESSION['ulevel'] == 0) {
+    header("Location: index.php");
+    exit;
+}
+$_SESSION['prev'] = "generatorius";
+$db = mysqli_connect(DB_SERVER, DB_USER, DB_PASS, DB_NAME);
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Maršruto generatorius</title>
+    <link href="include/styles.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+    <table class="center" style="width:50%">
+        <tr><td>
+            <center><img src="include/top1.png"></center>
+        </td></tr>
+        <tr><td>
+<?php
+include("include/meniu.php");
+?>
+            <h1>Automatinis maršruto generatorius</h1>
+           <div style="max-width: 500px; margin: 20px auto;">
+                <form method="POST">
+                    <h3>Kelionės parametrai</h3>
+                    
+                    <p>
+                        <label>Pradinis miestas:</label><br>
+                        <input type="text" name="pradinis_miestas" required placeholder="pvz: Vilnius">
+                    </p>
+                    
+                    <p>
+                        <label>Pradžia:</label><br>
+                        <input type="date" name="datos_nuo" required value="<?php echo date('Y-m-d'); ?>">
+                    </p>
+                    
+                    <p>
+                        <label>Pabaiga:</label><br>
+                        <input type="date" name="datos_iki" required value="<?php echo date('Y-m-d', strtotime('+2 days')); ?>">
+                    </p>
+                    
+                    <h3>Objektų tipai</h3>
+<?php
+$tipai_result = mysqli_query($db, "SELECT * FROM objektu_tipai WHERE ar_nakyvne = 0");
+while ($tipas = mysqli_fetch_assoc($tipai_result)) {
+    echo "<label><input type='checkbox' name='tipai[]' value='" . $tipas['tipo_id'] . "'> " . $tipas['pavadinimas'] . "</label><br>";
+}
+?>
+                    
+                    <p style="text-align: center;">
+                        <input type="submit" name="generuoti" value="Generuoti maršrutą">
+                    </p>
+                </form>
+            </div>
+
+<?php
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generuoti'])) {
+    $pradinis_miestas = trim($_POST['pradinis_miestas']);
+    $datos_nuo = $_POST['datos_nuo'];
+    $datos_iki = $_POST['datos_iki'];
+    $pasirinkti_tipai = isset($_POST['tipai']) ? $_POST['tipai'] : array();
+    $max_laikas_dienai = 340; // 6 val per dieną
+    
+    $dienų_skaicius = (strtotime($datos_iki) - strtotime($datos_nuo)) / 86400 + 1;
+    
+    if (empty($pradinis_miestas)) {
+        echo "<p style='color: red;'>Įveskite pradinį miestą!</p>";
+    } 
+    elseif (!empty($pasirinkti_tipai)) {
+        $tipai_str = implode(',', array_map('intval', $pasirinkti_tipai));
+        
+        // Pradinis objektas
+        $sql_pradinis = "SELECT o.*, ot.pavadinimas as tipo_pavadinimas
+                        FROM objektai o
+                        JOIN objektu_tipai ot ON o.tipo_id = ot.tipo_id
+                        WHERE o.tipo_id IN ($tipai_str) 
+                        AND o.miestas LIKE '%" . mysqli_real_escape_string($db, $pradinis_miestas) . "%'
+                        LIMIT 1";
+        $result_pradinis = mysqli_query($db, $sql_pradinis);
+        
+        if (!$result_pradinis || mysqli_num_rows($result_pradinis) == 0) {
+            // Jei neranda - ima pirmą bet kurį
+            $sql_pradinis = "SELECT o.*, ot.pavadinimas as tipo_pavadinimas
+                            FROM objektai o
+                            JOIN objektu_tipai ot ON o.tipo_id = ot.tipo_id
+                            WHERE o.tipo_id IN ($tipai_str) LIMIT 1";
+            $result_pradinis = mysqli_query($db, $sql_pradinis);
+        }
+        
+        $pradinis_obj = mysqli_fetch_assoc($result_pradinis);
+        $dabartine_vieta_id = $pradinis_obj['objekto_id'];
+        $panaudoti_objektai = array($dabartine_vieta_id);
+        
+        echo "<div style='margin: 20px;'>";
+        echo "<h2>Sugeneruotas maršrutas</h2>";
+        echo "<p><b>Pradinis miestas:</b> $pradinis_miestas | <b>Trukmė:</b> $dienų_skaicius d. | <b>Laikas/dienai:</b> +- 6val </p>";
+        
+        echo "<table border='1' cellspacing='0' cellpadding='8' width='100%'>";
+        echo "<tr style='background-color: #f0f0f0;'>";
+        echo "<th>Diena</th><th>Objektas</th><th>Tipas</th><th>Miestas</th><th>Atstumas</th><th>Vykst.</th><th>Lank.</th><th>★</th>";
+        echo "</tr>";
+        
+        $bendras_laikas = 0;
+        $bendras_atstumas = 0;
+        
+        // Pradinis objektas
+        echo "<tr>";
+        echo "<td><b>1</b></td>";
+        echo "<td>" . $pradinis_obj['pavadinimas'] . "</td>";
+        echo "<td>" . $pradinis_obj['tipo_pavadinimas'] . "</td>";
+        echo "<td>" . $pradinis_obj['miestas'] . "</td>";
+        echo "<td>START</td>";
+        echo "<td>-</td>";
+        echo "<td>" . $pradinis_obj['rekomenduojamas_laikas'] . " min</td>";
+        echo "<td>-</td>";
+        echo "</tr>";
+        
+        $bendras_laikas = $pradinis_obj['rekomenduojamas_laikas'];
+        
+        for ($diena = 1; $diena <= $dienų_skaicius; $diena++) {
+            $dienos_laikas = ($diena == 1) ? $bendras_laikas : 0;
+            
+            while ($dienos_laikas < $max_laikas_dienai) {
+                $sql_artimas = "SELECT o.*, ot.pavadinimas as tipo_pavadinimas,
+                               a.ivertinimas,
+                               ast.atstumas_km, ast.laikas as keliones_laikas
+                        FROM objektai o
+                        JOIN objektu_tipai ot ON o.tipo_id = ot.tipo_id
+                        LEFT JOIN atsiliepimai a ON o.objekto_id = a.objekto_id
+                         JOIN atstumas ast ON (
+                            ast.objekto1_id = $dabartine_vieta_id AND 
+                            ast.objekto2_id = o.objekto_id
+                        )
+                        WHERE o.tipo_id IN ($tipai_str)
+                        AND ot.ar_nakyvne = 0
+                        AND o.objekto_id NOT IN (" . implode(',', $panaudoti_objektai) . ")
+                        ORDER BY ast.atstumas_km ASC, a.ivertinimas DESC
+                        LIMIT 1";
+                
+                $result_artimas = mysqli_query($db, $sql_artimas);
+                
+                if (!$result_artimas || mysqli_num_rows($result_artimas) == 0) {
+                    break;
+                }
+                
+                $obj = mysqli_fetch_assoc($result_artimas);
+                
+                $keliones_laikas = $obj['keliones_laikas'] ? $obj['keliones_laikas'] : 0;
+                $naujas_laikas = $dienos_laikas + $obj['rekomenduojamas_laikas'] + $keliones_laikas;
+                
+                if ($naujas_laikas > $max_laikas_dienai && $dienos_laikas > 0) 
+{
+                    //break;
+                }
+                
+                echo "<tr>";
+                echo "<td><b>$diena</b></td>";
+                echo "<td>" . $obj['pavadinimas'] . "</td>";
+                echo "<td>" . $obj['tipo_pavadinimas'] . "</td>";
+                echo "<td>" . $obj['miestas'] . "</td>";
+                echo "<td>" . ($obj['atstumas_km'] ? $obj['atstumas_km'] . " km" : "-") . "</td>";
+                echo "<td>" . $keliones_laikas . " min</td>";
+                echo "<td>" . $obj['rekomenduojamas_laikas'] . " min</td>";
+                echo "<td>" . ($obj['ivertinimas'] ? $obj['ivertinimas'] : "-") . "</td>";
+                echo "</tr>";
+                
+                $bendras_laikas += $obj['rekomenduojamas_laikas'] + $keliones_laikas;
+                $bendras_atstumas += $obj['atstumas_km'] ? $obj['atstumas_km'] : 0;
+                $dienos_laikas = $naujas_laikas;
+                
+                $dabartine_vieta_id = $obj['objekto_id'];
+                $panaudoti_objektai[] = $obj['objekto_id'];
+            }
+            
+            // NAKVYNĖ - naudojam PASKUTINĮ dienos objektą
+            if ($diena < $dienų_skaicius && $dabartine_vieta_id) {
+                // DEBUG
+                echo "<!-- DEBUG: iesko nakvynes nuo objekto_id = $dabartine_vieta_id -->";
+                
+                $sql_nakv = "SELECT o.*, a.ivertinimas,
+                            COALESCE(ast.atstumas_km, 0) as atstumas_km, 
+                            COALESCE(ast.laikas, 0) as keliones_laikas
+                    FROM objektai o
+                    LEFT JOIN atsiliepimai a ON o.objekto_id = a.objekto_id
+                    JOIN atstumas ast ON (
+                        ast.objekto1_id = $dabartine_vieta_id AND 
+                        ast.objekto2_id = o.objekto_id
+                    )
+                    WHERE o.tipo_id = 5
+                    ORDER BY atstumas_km ASC, a.ivertinimas DESC
+                    LIMIT 1";
+                
+                $result_nakv = mysqli_query($db, $sql_nakv);
+                
+                if ($result_nakv && mysqli_num_rows($result_nakv) > 0) {
+                    $nakv = mysqli_fetch_assoc($result_nakv);
+                    
+                    echo "<tr style='background-color: #fffacd;'>";
+                    echo "<td>🌙</td>";
+                    echo "<td> " . $nakv['pavadinimas'] . "</td>";
+                    echo "<td>Nakvynė</td>";
+                    echo "<td>" . $nakv['miestas'] . "</td>";
+                    echo "<td>" . $nakv['atstumas_km'] . " km</td>";
+                    echo "<td>" . $nakv['keliones_laikas'] . " min</td>";
+                    echo "<td>-</td>";
+                    echo "<td>" . ($nakv['ivertinimas'] ? $nakv['ivertinimas'] : "-") . "</td>";
+                    echo "</tr>";
+                    
+                    $bendras_atstumas += $nakv['atstumas_km'] ? $nakv['atstumas_km'] : 0;
+                    $dabartine_vieta_id = $nakv['objekto_id'];
+                }
+                }
+                // DIENOS SUVESTINĖ
+                echo "<tr style='background-color: #e8f5e9; font-weight: bold;'>";
+                echo "<td colspan='5' style='text-align: right;'>Dienos $diena suvestinė:</td>";
+                echo "<td>" . round($dienos_laikas / 60, 1) . " val</td>";
+                echo "<td colspan='2'></td>";
+                echo "</tr>";
+            
+        }
+        
+        echo "</table>";
+        
+        // Apskaičiuoti tikslią statistiką
+        $objektu_laikas = 0;
+        $keliones_laikas = 0;
+        
+        // Perskaičiuoti iš naujo (paprasčiau nei skaičiuoti cikle)
+        foreach ($panaudoti_objektai as $oid) {
+            $r = mysqli_query($db, "SELECT rekomenduojamas_laikas FROM objektai WHERE objekto_id = $oid");
+            if ($row = mysqli_fetch_assoc($r)) {
+                $objektu_laikas += $row['rekomenduojamas_laikas'];
+            }
+        }
+        
+        $keliones_laikas = $bendras_laikas - $objektu_laikas;
+        
+        echo "<p style='margin-top: 10px; font-size: 16px;'>";
+        echo "<b>Bendras atstumas:</b> $bendras_atstumas km<br>";
+        echo "<b>Laikas objektuose:</b> " . round($objektu_laikas / 60, 1) . " val (" . $objektu_laikas . " min)<br>";
+        echo "<b>Laikas kelyje:</b> " . round($keliones_laikas / 60, 1) . " val (" . $keliones_laikas . " min)<br>";
+        echo "<b>BENDRAS LAIKAS:</b> " . round($bendras_laikas / 60, 1) . " val (" . $bendras_laikas . " min)";
+        echo "</p>";
+        
+        echo "</div>";
+        
+    } else {
+        echo "<p style='color: red;'>Pasirinkite tipus!</p>";
+    }
+}
+?>
+
+         </td></tr>
+    </table>
+</body>
+</html>
+<?php mysqli_close($db); ?>
