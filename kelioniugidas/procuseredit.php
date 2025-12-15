@@ -29,13 +29,16 @@ $user = $_SESSION['user'];
 $pass = $_POST['pass'] ?? '';
 $passn = $_POST['passn'] ?? '';
 $mail = $_SESSION['email'] ?? '';
-$dailyminutes = intval($_POST['dailytime'] ?? 0);
+$dailyminutes = intval($_POST['dailyminutes'] ?? 0);
 
 // Išsaugome įvestas reikšmes formai
-$_SESSION['pass_login'] = $pass;
-$_SESSION['passn_login'] = $passn;
+//$_SESSION['pass_login'] = $pass;
+//$_SESSION['passn_login'] = $passn;
 $_SESSION['mail_login'] = $mail;
-$_SESSION['dailyminutes'] = $dailyminutes;
+//$_SESSION['dailyminutes'] = $dailyminutes;
+$_SESSION['pass_login'] = "";
+$_SESSION['passn_login'] = "";
+$_SESSION['dailyminutes'] = "";
 
 $changes_made = false;
 $errors = false;
@@ -53,7 +56,7 @@ if ($dailyminutes > 0) {
             exit;
         }
         $changes_made = true;
-        $_SESSION['dailytime'] = $dailyminutes; // Atnaujiname sesijoje
+        $_SESSION['dailyminutes'] = $dailyminutes; // Atnaujiname sesijoje
     }
 }
 
