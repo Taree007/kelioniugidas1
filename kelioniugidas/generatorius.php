@@ -53,7 +53,7 @@ function isInDirections($current_lat, $current_lon, $target_lat, $target_lon, $d
 }
 
 // Artimiausių objektų paieška
-function findNearestObjects($db, $current_lat, $current_lon, $tipai_str, $used_objects, $limit = 5, $directions = array()) {
+function findNearestObjects($db, $current_lat, $current_lon, $tipai_str, $used_objects, $limit = 7, $directions = array()) {
     $used_str = empty($used_objects) ? '0' : implode(',', $used_objects);
     
     $sql = "SELECT o.*, ot.pavadinimas as tipo_pavadinimas
@@ -239,7 +239,7 @@ function generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_st
         }
         
         while ($dienos_laikas < $max_laikas_dienai) {
-            $nearest_objects = findNearestObjects($db, $current_lat, $current_lon, $tipai_str, $panaudoti_objektai, 3, $directions);
+            $nearest_objects = findNearestObjects($db, $current_lat, $current_lon, $tipai_str, $panaudoti_objektai, 7, $directions);
             
             if (empty($nearest_objects)) {
                 break;
