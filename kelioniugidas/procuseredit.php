@@ -28,7 +28,7 @@ $_SESSION['dailytime_error'] = "";
 $user = $_SESSION['user'];
 $pass = $_POST['pass'] ?? '';
 $passn = $_POST['passn'] ?? '';
-$mail = $_POST['email'] ?? '';
+$mail = $_SESSION['email'] ?? '';
 $dailyminutes = intval($_POST['dailytime'] ?? 0);
 
 // Išsaugome įvestas reikšmes formai
