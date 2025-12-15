@@ -65,7 +65,7 @@ function checkname ($username){   // Vartotojo vardo sintakse
       else {  //vardas yra DB
            $row = mysqli_fetch_assoc($result); 
            $uname= $row["username"]; $upass= $row["password"]; 
-           $ulevel=$row["userlevel"]; $uid= $row["userid"]; $umail = $row["email"];}
+           $ulevel=$row["userlevel"]; $uid= $row["userid"]; $umail = $row["email"]; $dailyminutes=$row["dailyminutes"];}
      return array($uname,$upass,$ulevel,$uid,$umail,$dailyminutes);
  }
 
