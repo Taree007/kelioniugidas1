@@ -16,7 +16,7 @@ if (!isset($_SESSION['prev']) ||
 include("include/nustatymai.php");
 
 // Jei ateinama iš index.php - nustatome pradines reikšmes
-if ($_SESSION['prev'] == "index") {
+//if ($_SESSION['prev'] == "index") {
     $_SESSION['mail_login'] = $_SESSION['umail'];
     $_SESSION['pass_login'] = "";
     $_SESSION['passn_login'] = "";
@@ -88,3 +88,4 @@ $_SESSION['prev'] = "useredit";
         </table>           
     </body>
 </html>
+
