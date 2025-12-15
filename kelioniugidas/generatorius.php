@@ -163,7 +163,7 @@ function generateDescription($route_data, $dienų_skaicius) {
 }
 
 // Maršruto generavimas
-function generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_str, $route_number, $accommodation_types = array()) {
+function generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_str, $route_number, $accommodation_types = array(), $directions = array()) {
 
     $time_row = mysqli_fetch_assoc(mysqli_query($db, "SELECT dailyminutes FROM users WHERE userid = '{$_SESSION['userid']}'"));
     $max_laikas_dienai = $time_row['dailyminutes'];
@@ -239,7 +239,7 @@ function generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_st
         }
         
         while ($dienos_laikas < $max_laikas_dienai) {
-            $nearest_objects = findNearestObjects($db, $current_lat, $current_lon, $tipai_str, $panaudoti_objektai, 3);
+            $nearest_objects = findNearestObjects($db, $current_lat, $current_lon, $tipai_str, $panaudoti_objektai, 3, $directions);
             
             if (empty($nearest_objects)) {
                 break;
@@ -429,10 +429,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generuoti'])) {
         }
         
         echo "<hr>";
-        
+
+        $kryptys = isset($_POST['kryptys']) && is_array($_POST['kryptys']) ? $_POST['kryptys'] : array();
+
         echo "<table class=\"center\"><tr>";
-        echo "<td style=\"width:50%\">" . generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_str, 0, $nakvynes_tipai) . "</td>";
-        echo "<td style=\"width:50%\">" . generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_str, 1, $nakvynes_tipai) . "</td>";
+        echo "<td style=\"width:50%\">" . generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_str, 0, $nakvynes_tipai, $kryptys ) . "</td>";
+        echo "<td style=\"width:50%\">" . generateRoute($db, $pradinis_miestas, $datos_nuo, $datos_iki, $tipai_str, 1, $nakvynes_tipai, $kryptys ) . "</td>";
         echo "</tr></table>";
         
     } else {
